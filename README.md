@@ -23,7 +23,7 @@ Open the app.
 3. **Test on 2,000 held-out cycles.** That table is the result that matters. It is not the form.
 4. **The dataset.** Row counts, the model comparison, and which columns were excluded.
 
-The form uses the model fit on all 10,000 cycles, so its example machines are not unseen. The test tab is.
+The form uses the model fit on all 10,000 cycles, so its example machines are not unseen. The held-out table further down the page is.
 
 ## Result
 

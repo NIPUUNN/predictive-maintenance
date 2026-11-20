@@ -56,6 +56,21 @@ READING_COLUMNS = {
 
 st.set_page_config(page_title="Milling inspection", layout="wide", initial_sidebar_state="collapsed")
 
+st.markdown(
+    """
+    <style>
+    .block-container { max-width: 1120px; padding-top: 1.4rem; padding-bottom: 3rem; }
+    h1 { font-weight: 500; letter-spacing: -0.03em; font-size: 1.65rem; margin-bottom: 0.15rem; }
+    h2 { font-weight: 500; letter-spacing: -0.02em; font-size: 1.15rem; padding-top: 0.4rem; }
+    #MainMenu, footer { visibility: hidden; }
+    header[data-testid="stHeader"] { background: transparent; }
+    .decision { font-size: 1.7rem; font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; margin: 0 0 0.35rem 0; }
+    div[data-testid="stVerticalBlockBorderWrapper"] { border-color: #2A2E32; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_resource
 def load_bundle() -> dict:
@@ -222,70 +237,127 @@ if "example" not in st.session_state:
     st.session_state.cutoff = float(bundle["threshold"])
     load_example()
 
-st.title("Milling inspection")
-st.write(
-    "A milling cycle finishes with six readings: product type, air temperature, "
-    "process temperature, spindle speed, torque, and tool wear. "
-    "The job of this page is to say which machines to stop before the next cycle, "
-    "and which ones to leave running."
-)
-st.caption(
-    f"Trained on {dataset['name']}, {dataset['source']}. "
-    f"The published file has {dataset['rows']:,} cycles and {dataset['failures']:,} failures "
-    f"({dataset['failure_rate']:.2%}). The form uses a model fit on all {dataset['rows']:,}. "
-    "The test tab is 2,000 cycles scored before that final fit."
-)
-
-check_tab, test_tab, data_tab = st.tabs(
-    ["Check a cycle", "Test on 2,000 held-out cycles", "The dataset"]
-)
-
-with check_tab:
-    st.selectbox(
-        "Example from the file",
-        [preset["id"] for preset in presets],
-        format_func=lambda preset_id: (
-            f"{next(item['product_id'] for item in presets if item['id'] == preset_id)}"
-            f" — {EXAMPLE_NAMES.get(preset_id, preset_id)}"
-        ),
-        key="example",
-        on_change=load_example,
+def style_chart(chart: alt.Chart) -> alt.Chart:
+    return (
+        chart.configure(background="transparent")
+        .configure_view(strokeWidth=0)
+        .configure_axis(
+            labelColor="#C9C3B6",
+            titleColor="#C9C3B6",
+            gridColor="#2A2E32",
+            domainColor="#3A3E42",
+        )
+        .configure_legend(labelColor="#C9C3B6", titleColor="#C9C3B6")
     )
 
-    controls, result = st.columns([1, 1], gap="large")
-    with controls:
-        st.text_input("Machine", key="machine_id")
-        st.selectbox("Product type", ["L", "M", "H"], key="type", on_change=mark_edited)
-        st.slider("Air temperature (K)", 295.3, 304.5, step=0.1, key="air", on_change=mark_edited)
-        st.slider("Process temperature (K)", 305.7, 313.8, step=0.1, key="process", on_change=mark_edited)
-        st.slider("Rotational speed (rpm)", 1168, 2886, step=1, key="rpm", on_change=mark_edited)
-        st.slider("Torque (N·m)", 3.8, 76.6, step=0.1, key="torque", on_change=mark_edited)
-        st.slider("Tool wear (min)", 0, 253, step=1, key="wear", on_change=mark_edited)
-        st.slider("Stop when risk is at least", 0.05, 0.95, step=0.01, key="cutoff")
 
-    payload = current_payload()
-    features = build_features(pd.DataFrame([payload]))
-    risk = risk_of(features)
-    gap = float(features["temp_diff_k"].iloc[0])
-    power_kw = float(features["mechanical_power_w"].iloc[0] / 1000)
-    wear_torque = float(features["wear_torque"].iloc[0])
-    cutoff = float(st.session_state.cutoff)
-    flagged = risk >= cutoff
-    explained = local_contributions(
-        lambda frame: bundle["model"].predict_proba(frame)[:, 1],
-        payload,
-        bundle["baseline_raw"],
-    )
-    active = None if st.session_state.edited else next(
-        (preset for preset in presets if preset["id"] == st.session_state.example),
-        None,
+head_left, head_right = st.columns([3, 2])
+with head_left:
+    st.title("Milling inspection")
+    st.caption("Enter one cycle, or a list. The page says which machines to stop.")
+with head_right:
+    st.caption(
+        f"AI4I 2020, UCI. {dataset['rows']:,} cycles, {dataset['failures']:,} failures "
+        f"({dataset['failure_rate']:.2%}). The form is fit on all {dataset['rows']:,}."
     )
 
-    with result:
+controls, result = st.columns([1.15, 1], gap="large")
+with controls:
+    with st.container(border=True):
+        st.selectbox(
+            "Example",
+            [preset["id"] for preset in presets],
+            format_func=lambda preset_id: (
+                f"{next(item['product_id'] for item in presets if item['id'] == preset_id)}"
+                f" — {EXAMPLE_NAMES.get(preset_id, preset_id)}"
+            ),
+            key="example",
+            on_change=load_example,
+        )
+        machine_col, type_col = st.columns([2, 1])
+        with machine_col:
+            st.text_input("Machine", key="machine_id")
+        with type_col:
+            st.radio("Type", ["L", "M", "H"], horizontal=True, key="type", on_change=mark_edited)
+        air_col, process_col = st.columns(2)
+        with air_col:
+            st.number_input(
+                "Air temperature (K)",
+                min_value=295.3,
+                max_value=304.5,
+                step=0.1,
+                format="%.1f",
+                key="air",
+                on_change=mark_edited,
+            )
+        with process_col:
+            st.number_input(
+                "Process temperature (K)",
+                min_value=305.7,
+                max_value=313.8,
+                step=0.1,
+                format="%.1f",
+                key="process",
+                on_change=mark_edited,
+            )
+        rpm_col, torque_col = st.columns(2)
+        with rpm_col:
+            st.number_input(
+                "Rotational speed (rpm)",
+                min_value=1168,
+                max_value=2886,
+                step=1,
+                key="rpm",
+                on_change=mark_edited,
+            )
+        with torque_col:
+            st.number_input(
+                "Torque (N·m)",
+                min_value=3.8,
+                max_value=76.6,
+                step=0.1,
+                format="%.1f",
+                key="torque",
+                on_change=mark_edited,
+            )
+        st.number_input(
+            "Tool wear (min)",
+            min_value=0,
+            max_value=253,
+            step=1,
+            key="wear",
+            on_change=mark_edited,
+        )
+
+payload = current_payload()
+features = build_features(pd.DataFrame([payload]))
+risk = risk_of(features)
+gap = float(features["temp_diff_k"].iloc[0])
+power_kw = float(features["mechanical_power_w"].iloc[0] / 1000)
+wear_torque = float(features["wear_torque"].iloc[0])
+cutoff = float(st.session_state.cutoff)
+flagged = risk >= cutoff
+explained = local_contributions(
+    lambda frame: bundle["model"].predict_proba(frame)[:, 1],
+    payload,
+    bundle["baseline_raw"],
+)
+active = None if st.session_state.edited else next(
+    (preset for preset in presets if preset["id"] == st.session_state.example),
+    None,
+)
+decision = "Stop and inspect" if flagged else "Leave running"
+decision_color = "#E2C7A0" if flagged else "#C9D0C4"
+
+with result:
+    with st.container(border=True):
+        st.markdown(
+            f"<p class='decision' style='color:{decision_color}'>{decision}</p>",
+            unsafe_allow_html=True,
+        )
         st.metric("Failure risk", f"{risk:.1%}")
-        st.write("Stop and inspect" if flagged else "Leave running")
         gap_col, power_col, wear_col = st.columns(3)
-        gap_col.metric("Temp. gap", f"{gap:.1f} K")
+        gap_col.metric("Gap", f"{gap:.1f} K")
         power_col.metric("Power", f"{power_kw:.1f} kW")
         wear_col.metric("Wear × torque", f"{wear_torque:,.0f}")
         st.write(inspection_reason(payload, gap, power_kw, wear_torque, explained, flagged))
@@ -293,16 +365,13 @@ with check_tab:
             mode_proba = bundle["mode_model"].predict_proba(features)[0]
             top_index = int(mode_proba.argmax())
             st.caption(
-                f"If it is stopped, the closest recorded pattern is "
-                f"{bundle['mode_classes'][top_index].lower()} "
+                f"Closest recorded pattern: {bundle['mode_classes'][top_index].lower()} "
                 f"({mode_proba[top_index]:.0%} of trees)."
             )
         if active is not None:
-            st.caption(
-                f"In the file this cycle is labeled {active['recorded']}. "
-                "It was included in the 10,000-row fit, so it is an example, not a test result."
-            )
-        if st.button("Add to this shift"):
+            st.caption(f"File label: {active['recorded']}. This row is in the 10,000-cycle fit.")
+        st.slider("Stop when risk is at least", 0.05, 0.95, step=0.01, key="cutoff")
+        if st.button("Add to this shift", use_container_width=True):
             st.session_state.log.append(
                 {
                     "time": datetime.now().strftime("%H:%M:%S"),
@@ -312,10 +381,12 @@ with check_tab:
                     "torque": round(float(st.session_state.torque), 1),
                     "wear_min": int(st.session_state.wear),
                     "risk": f"{risk:.1%}",
-                    "decision": "Stop and inspect" if flagged else "Leave running",
+                    "decision": decision,
                 }
             )
 
+shift_col, list_col = st.columns(2, gap="large")
+with shift_col:
     st.subheader("This shift")
     if st.session_state.log:
         log_frame = pd.DataFrame(st.session_state.log)
@@ -327,13 +398,10 @@ with check_tab:
             mime="text/csv",
         )
     else:
-        st.caption("Nothing checked yet.")
-
-    st.subheader("Score a list of cycles")
-    st.caption(
-        "Columns: type, air_temp, process_temp, rpm, torque, tool_wear. "
-        "product_id is optional. This scores whatever you upload with the model fit on all 10,000 cycles."
-    )
+        st.caption("Nothing checked yet. The decision above can be saved here.")
+with list_col:
+    st.subheader("Score a list")
+    st.caption("CSV columns: type, air_temp, process_temp, rpm, torque, tool_wear. product_id is optional.")
     if SHIFT_PATH.exists():
         st.download_button(
             "Download a 24-cycle example",
@@ -363,149 +431,135 @@ with check_tab:
                 mime="text/csv",
             )
 
-with test_tab:
-    holdout = metrics["holdout"]
-    st.write(
-        "These scores come from the random forest fit on 8,000 cycles. "
-        "The 2,000 cycles here were not used to fit that model or to pick the threshold. "
-        "After this test was saved, the app's model was fit again on all 10,000."
-    )
-    if not REVIEW_PATH.exists():
-        st.error("data/holdout_review.csv is missing. Run python train.py.")
-    else:
-        review = load_review()
-        recorded = review["recorded_failure"].astype(int)
-        inspect = review["inspect"].astype(int)
-        caught = int(((inspect == 1) & (recorded == 1)).sum())
-        missed = int(((inspect == 0) & (recorded == 1)).sum())
-        false_alarms = int(((inspect == 1) & (recorded == 0)).sum())
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Cycles", f"{len(review):,}")
-        c2.metric("Would stop", f"{int(inspect.sum()):,}")
-        c3.metric("Real failures in that list", f"{caught} of {int(recorded.sum())}")
-        c4.metric("Stopped by mistake", f"{false_alarms}")
-        miss_modes = (
-            review.loc[(inspect == 0) & (recorded == 1), "recorded_mode"]
-            .value_counts()
-        )
-        miss_text = ", ".join(f"{int(count)} {name.lower()}" for name, count in miss_modes.items())
-        st.caption(
-            f"Missed failures: {missed} ({miss_text}). "
-            f"Same holdout as the training report "
-            f"({holdout['caught_failures']} caught, {holdout['false_alarms']} false alarms)."
-        )
-        view = st.radio(
-            "Show",
-            ["Inspection list", "Missed failures", "Unnecessary stops", "All 2,000"],
-            horizontal=True,
-        )
-        shown = review
-        if view == "Inspection list":
-            shown = review.loc[inspect == 1]
-        elif view == "Missed failures":
-            shown = review.loc[(inspect == 0) & (recorded == 1)]
-        elif view == "Unnecessary stops":
-            shown = review.loc[(inspect == 1) & (recorded == 0)]
-        table = shown.copy()
-        table["risk"] = table["risk"].map(lambda value: f"{value:.1%}")
-        table["decision"] = table["inspect"].map(lambda value: "Stop" if int(value) == 1 else "Run")
-        table["recorded"] = table.apply(
-            lambda row: row["recorded_mode"] if int(row["recorded_failure"]) == 1 else "No failure",
-            axis=1,
-        )
-        table = table[
-            ["product_id", "type", "rpm", "torque", "tool_wear", "risk", "decision", "recorded"]
-        ].rename(
-            columns={
-                "product_id": "Machine",
-                "type": "Type",
-                "rpm": "rpm",
-                "torque": "Torque",
-                "tool_wear": "Tool wear",
-                "risk": "Risk",
-                "decision": "Decision",
-                "recorded": "Recorded in file",
-            }
-        )
-        st.dataframe(table, hide_index=True, use_container_width=True)
-
-with data_tab:
-    summary = dataset_summary()
-    st.write(
-        f"{dataset['name']} is a synthetic milling process published by the "
-        "[UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset). "
-        f"The file in this project, data/ai4i2020.csv, is the whole set: "
-        f"{summary['rows']:,} cycles, {summary['failures']:,} with Machine failure = 1."
-    )
-    st.write(
-        "A model that never stops a machine is already right on "
-        f"{dataset['majority_class_accuracy']:.1%} of cycles, so accuracy is a weak way to judge this. "
-        "The useful question is how many real failures you catch per unnecessary stop."
-    )
-    left, right = st.columns(2)
-    with left:
-        st.caption("Cycles by product type")
-        st.dataframe(summary["by_type"], hide_index=True, use_container_width=True)
-    with right:
-        st.caption("Recorded outcome")
-        st.dataframe(summary["by_mode"], hide_index=True, use_container_width=True)
-    st.caption("First rows. The failure flags in the raw file were not used as inputs.")
-    st.dataframe(summary["preview"], hide_index=True, use_container_width=True)
-
-    st.subheader("What was compared")
-    st.write(metrics["shipped_fit"]["note"])
-    rows = []
-    for report in metrics["models"]:
-        decision = report["holdout_at_threshold"]
-        rows.append(
-            {
-                "Model": report["name"],
-                "Used": "Yes" if report["name"] == metrics["chosen_model"] else "",
-                "PR-AUC": f"{report['holdout_average_precision']:.3f}",
-                "Recall": f"{decision['recall']:.1%}",
-                "Precision": f"{decision['precision']:.1%}",
-                "False alarms": decision["false_alarms"],
-            }
-        )
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+st.subheader("Held-out test")
+holdout = metrics["holdout"]
+st.caption(
+    "2,000 cycles the comparison model had not seen. "
+    "After this was saved, the form's model was fit on all 10,000."
+)
+if not REVIEW_PATH.exists():
+    st.error("data/holdout_review.csv is missing. Run python train.py.")
+else:
+    review = load_review()
+    recorded = review["recorded_failure"].astype(int)
+    inspect = review["inspect"].astype(int)
+    caught = int(((inspect == 1) & (recorded == 1)).sum())
+    missed = int(((inspect == 0) & (recorded == 1)).sum())
+    false_alarms = int(((inspect == 1) & (recorded == 0)).sum())
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Cycles", f"{len(review):,}")
+    c2.metric("Would stop", f"{int(inspect.sum()):,}")
+    c3.metric("Real failures caught", f"{caught} of {int(recorded.sum())}")
+    c4.metric("Stopped by mistake", f"{false_alarms}")
+    miss_modes = review.loc[(inspect == 0) & (recorded == 1), "recorded_mode"].value_counts()
+    miss_text = ", ".join(f"{int(count)} {name.lower()}" for name, count in miss_modes.items())
     st.caption(
-        "Chosen by out-of-fold PR-AUC on the 8,000 training cycles. "
-        "Inputs are the five sensors, product type, temperature gap, mechanical power, and wear × torque. "
-        "Excluded: "
-        + ", ".join(metrics["excluded_inputs"])
-        + "."
+        f"Missed {missed}: {miss_text}. "
+        f"Training report: {holdout['caught_failures']} caught, {holdout['false_alarms']} false alarms."
     )
+    view = st.radio(
+        "Show",
+        ["Inspection list", "Missed failures", "Unnecessary stops", "All 2,000"],
+        horizontal=True,
+    )
+    shown = review
+    if view == "Inspection list":
+        shown = review.loc[inspect == 1]
+    elif view == "Missed failures":
+        shown = review.loc[(inspect == 0) & (recorded == 1)]
+    elif view == "Unnecessary stops":
+        shown = review.loc[(inspect == 1) & (recorded == 0)]
+    table = shown.copy()
+    table["risk"] = table["risk"].map(lambda value: f"{value:.1%}")
+    table["decision"] = table["inspect"].map(lambda value: "Stop" if int(value) == 1 else "Run")
+    table["recorded"] = table.apply(
+        lambda row: row["recorded_mode"] if int(row["recorded_failure"]) == 1 else "No failure",
+        axis=1,
+    )
+    table = table[
+        ["product_id", "type", "rpm", "torque", "tool_wear", "risk", "decision", "recorded"]
+    ].rename(
+        columns={
+            "product_id": "Machine",
+            "type": "Type",
+            "rpm": "rpm",
+            "torque": "Torque",
+            "tool_wear": "Tool wear",
+            "risk": "Risk",
+            "decision": "Decision",
+            "recorded": "Recorded in file",
+        }
+    )
+    st.dataframe(table, hide_index=True, use_container_width=True, height=360)
 
-    points = chart_frame()
-    color = alt.Color("outcome:N", title="Recorded outcome")
-    power_chart = (
-        alt.Chart(points)
-        .mark_circle(opacity=0.7, size=36)
-        .encode(
-            x=alt.X("power_kw:Q", title="Mechanical power (kW)", scale=alt.Scale(domain=[0, 12])),
-            y=alt.Y("wear_torque:Q", title="Wear × torque"),
-            color=color,
-            tooltip=["outcome", "power_kw", "wear_torque"],
-        )
-    )
-    heat_chart = (
-        alt.Chart(points)
-        .mark_circle(opacity=0.7, size=36)
-        .encode(
-            x=alt.X("temp_gap_k:Q", title="Temperature gap (K)", scale=alt.Scale(domain=[7.4, 12])),
-            y=alt.Y("speed_rpm:Q", title="Rotational speed (rpm)", scale=alt.Scale(domain=[1150, 2900])),
-            color=color,
-            tooltip=["outcome", "temp_gap_k", "speed_rpm"],
-        )
-    )
-    chart_left, chart_right = st.columns(2)
-    with chart_left:
-        st.altair_chart(power_chart, use_container_width=True)
-    with chart_right:
-        st.altair_chart(heat_chart, use_container_width=True)
+st.subheader("Dataset and model")
+summary = dataset_summary()
+st.caption(
+    f"{dataset['name']}, "
+    "[UCI](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset). "
+    f"{summary['rows']:,} cycles in data/ai4i2020.csv, {summary['failures']:,} failures. "
+    f"Never stopping a machine is already right {dataset['majority_class_accuracy']:.1%} of the time."
+)
+fact_left, fact_right = st.columns(2)
+with fact_left:
+    st.caption("Cycles by product type")
+    st.dataframe(summary["by_type"], hide_index=True, use_container_width=True)
+with fact_right:
+    st.caption("Recorded outcome")
+    st.dataframe(summary["by_mode"], hide_index=True, use_container_width=True)
 
-    importance = pd.DataFrame(metrics["importance"])
-    st.bar_chart(importance.set_index("feature")["importance"], horizontal=True)
-    st.caption("Drop in holdout PR-AUC when that group of inputs is shuffled. Computed on the 2,000-cycle test.")
-    flag_line = ", ".join(f"{name} {metrics['dataset']['flag_counts'][column]}" for name, column in FAILURE_FLAGS)
-    st.caption(f"Recorded flags in the file, not model inputs: {flag_line}.")
+rows = []
+for report in metrics["models"]:
+    decision_row = report["holdout_at_threshold"]
+    rows.append(
+        {
+            "Model": report["name"],
+            "Used": "Yes" if report["name"] == metrics["chosen_model"] else "",
+            "PR-AUC": f"{report['holdout_average_precision']:.3f}",
+            "Recall": f"{decision_row['recall']:.1%}",
+            "Precision": f"{decision_row['precision']:.1%}",
+            "False alarms": decision_row["false_alarms"],
+        }
+    )
+st.caption("Locked test. Random forest was chosen on the 8,000 training cycles, then refit on all 10,000.")
+st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+st.caption("Not used as inputs: " + ", ".join(metrics["excluded_inputs"]) + ".")
+
+points = chart_frame()
+outcome_scale = alt.Scale(
+    domain=["No failure", "Heat dissipation", "Power", "Overstrain", "Tool wear", "Multiple", "Random"],
+    range=["#6E7570", "#C4A574", "#D08A72", "#8AA0B4", "#A894C4", "#C4B48A", "#8A847A"],
+)
+color = alt.Color("outcome:N", title="Recorded outcome", scale=outcome_scale)
+power_chart = style_chart(
+    alt.Chart(points)
+    .mark_circle(opacity=0.75, size=36)
+    .encode(
+        x=alt.X("power_kw:Q", title="Mechanical power (kW)", scale=alt.Scale(domain=[0, 12])),
+        y=alt.Y("wear_torque:Q", title="Wear × torque"),
+        color=color,
+        tooltip=["outcome", "power_kw", "wear_torque"],
+    )
+)
+heat_chart = style_chart(
+    alt.Chart(points)
+    .mark_circle(opacity=0.75, size=36)
+    .encode(
+        x=alt.X("temp_gap_k:Q", title="Temperature gap (K)", scale=alt.Scale(domain=[7.4, 12])),
+        y=alt.Y("speed_rpm:Q", title="Rotational speed (rpm)", scale=alt.Scale(domain=[1150, 2900])),
+        color=color,
+        tooltip=["outcome", "temp_gap_k", "speed_rpm"],
+    )
+)
+chart_left, chart_right = st.columns(2)
+with chart_left:
+    st.altair_chart(power_chart, use_container_width=True)
+with chart_right:
+    st.altair_chart(heat_chart, use_container_width=True)
+
+importance = pd.DataFrame(metrics["importance"])
+st.bar_chart(importance.set_index("feature")["importance"], horizontal=True, height=280)
+st.caption("Drop in test PR-AUC when that input is shuffled.")
+st.dataframe(summary["preview"], hide_index=True, use_container_width=True, height=280)
+flag_line = ", ".join(f"{name} {metrics['dataset']['flag_counts'][column]}" for name, column in FAILURE_FLAGS)
+st.caption(f"First rows of the file. Recorded flags, not inputs: {flag_line}.")
