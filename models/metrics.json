@@ -1,0 +1,269 @@
+{
+  "dataset": {
+    "name": "AI4I 2020 Predictive Maintenance",
+    "source": "UCI Machine Learning Repository",
+    "rows": 10000,
+    "failures": 339,
+    "failure_rate": 0.0339,
+    "majority_class_accuracy": 0.9661,
+    "flag_counts": {
+      "TWF": 46,
+      "HDF": 115,
+      "PWF": 95,
+      "OSF": 98,
+      "RNF": 19
+    },
+    "overlapping_failure_rows": 24,
+    "failure_without_flag": 9,
+    "flag_without_failure": 18
+  },
+  "split": {
+    "test_size": 0.2,
+    "random_state": 42,
+    "n_train": 8000,
+    "n_test": 2000,
+    "test_failures": 68
+  },
+  "excluded_inputs": [
+    "TWF",
+    "HDF",
+    "PWF",
+    "OSF",
+    "RNF",
+    "UDI",
+    "Product ID"
+  ],
+  "features": [
+    "Air temperature [K]",
+    "Process temperature [K]",
+    "Rotational speed [rpm]",
+    "Torque [Nm]",
+    "Tool wear [min]",
+    "temp_diff_k",
+    "mechanical_power_w",
+    "wear_torque",
+    "type_L",
+    "type_H"
+  ],
+  "selection_rule": "Highest out-of-fold average precision on the training split.",
+  "threshold_rule": "On out-of-fold training scores, require at least 80% recall, then take the threshold with the highest precision.",
+  "chosen_model": "Random forest",
+  "shipped_fit": {
+    "rows": 10000,
+    "note": "Holdout metrics come from the model fit on the 8,000-row training split. After those numbers were locked, the same model was fit again on all 10,000 cycles. The app loads that second fit and keeps the threshold chosen on the training split."
+  },
+  "models": [
+    {
+      "name": "Logistic regression",
+      "oof_average_precision": 0.455177055637776,
+      "oof_roc_auc": 0.9223211186698489,
+      "oof_at_threshold": {
+        "threshold": 0.564753084945107,
+        "precision": 0.18389830508474575,
+        "recall": 0.8007380073800738,
+        "false_alarms": 963,
+        "missed_failures": 54,
+        "caught_failures": 217,
+        "true_healthy": 6766
+      },
+      "holdout_average_precision": 0.4295354950569393,
+      "holdout_roc_auc": 0.9384514675435393,
+      "holdout_at_threshold": {
+        "threshold": 0.564753084945107,
+        "precision": 0.20430107526881722,
+        "recall": 0.8382352941176471,
+        "false_alarms": 222,
+        "missed_failures": 11,
+        "caught_failures": 57,
+        "true_healthy": 1710
+      }
+    },
+    {
+      "name": "Random forest",
+      "oof_average_precision": 0.890814264500448,
+      "oof_roc_auc": 0.9793011321237549,
+      "oof_at_threshold": {
+        "threshold": 0.5343003645009569,
+        "precision": 0.9125,
+        "recall": 0.8081180811808119,
+        "false_alarms": 21,
+        "missed_failures": 52,
+        "caught_failures": 219,
+        "true_healthy": 7708
+      },
+      "holdout_average_precision": 0.8639979495963175,
+      "holdout_roc_auc": 0.9689288758981853,
+      "holdout_at_threshold": {
+        "threshold": 0.5343003645009569,
+        "precision": 0.9166666666666666,
+        "recall": 0.8088235294117647,
+        "false_alarms": 5,
+        "missed_failures": 13,
+        "caught_failures": 55,
+        "true_healthy": 1927
+      }
+    },
+    {
+      "name": "Gradient boosting",
+      "oof_average_precision": 0.8595519578666627,
+      "oof_roc_auc": 0.9695768894550116,
+      "oof_at_threshold": {
+        "threshold": 0.800821479164869,
+        "precision": 0.8538461538461538,
+        "recall": 0.8191881918819188,
+        "false_alarms": 38,
+        "missed_failures": 49,
+        "caught_failures": 222,
+        "true_healthy": 7691
+      },
+      "holdout_average_precision": 0.9029878984855775,
+      "holdout_roc_auc": 0.9844263792473511,
+      "holdout_at_threshold": {
+        "threshold": 0.800821479164869,
+        "precision": 0.8636363636363636,
+        "recall": 0.8382352941176471,
+        "false_alarms": 9,
+        "missed_failures": 11,
+        "caught_failures": 57,
+        "true_healthy": 1923
+      }
+    }
+  ],
+  "holdout": {
+    "threshold": 0.5343003645009569,
+    "precision": 0.9166666666666666,
+    "recall": 0.8088235294117647,
+    "false_alarms": 5,
+    "missed_failures": 13,
+    "caught_failures": 55,
+    "true_healthy": 1927
+  },
+  "holdout_average_precision": 0.8639979495963175,
+  "holdout_roc_auc": 0.9689288758981853,
+  "mode_recall": {
+    "Tool wear": 0.8888888888888888,
+    "Heat dissipation": 0.9642857142857143,
+    "Power": 1.0,
+    "Overstrain": 1.0
+  },
+  "importance": [
+    {
+      "feature": "Rotational speed",
+      "importance": 0.32885688580423844,
+      "std": 0.05148586297274152
+    },
+    {
+      "feature": "Temperature gap",
+      "importance": 0.23303320842960198,
+      "std": 0.026814356293947586
+    },
+    {
+      "feature": "Wear \u00d7 torque",
+      "importance": 0.12360336322148295,
+      "std": 0.008744183737431438
+    },
+    {
+      "feature": "Mechanical power",
+      "importance": 0.08229684462243904,
+      "std": 0.008464359937745993
+    },
+    {
+      "feature": "Torque",
+      "importance": 0.04642559998656929,
+      "std": 0.015900080108780416
+    },
+    {
+      "feature": "Tool wear",
+      "importance": 0.03382945884474127,
+      "std": 0.007997597333642413
+    },
+    {
+      "feature": "Product type",
+      "importance": 0.028989151891524123,
+      "std": 0.008443792653695095
+    },
+    {
+      "feature": "Air temperature",
+      "importance": -0.007781627204370256,
+      "std": 0.011048439249985732
+    },
+    {
+      "feature": "Process temperature",
+      "importance": -0.01179630019520148,
+      "std": 0.013921931180163688
+    }
+  ],
+  "presets": [
+    {
+      "id": "healthy",
+      "name": "Healthy",
+      "blurb": "Recorded cycle with no failure.",
+      "recorded": "No failure",
+      "product_id": "L54477",
+      "type": "L",
+      "air_temp": 300.1,
+      "process_temp": 310.5,
+      "rpm": 1500,
+      "torque": 39.8,
+      "tool_wear": 107,
+      "check_risk": 0.0
+    },
+    {
+      "id": "heat",
+      "name": "Heat dissipation",
+      "blurb": "Recorded heat-dissipation failure. Gap 8.3 K at 1295 rpm.",
+      "recorded": "Heat dissipation",
+      "product_id": "L51935",
+      "type": "L",
+      "air_temp": 303.4,
+      "process_temp": 311.7,
+      "rpm": 1295,
+      "torque": 51.3,
+      "tool_wear": 51,
+      "check_risk": 0.990828281808463
+    },
+    {
+      "id": "power",
+      "name": "Power",
+      "blurb": "Recorded power failure. Mechanical power 3.4 kW.",
+      "recorded": "Power",
+      "product_id": "L54191",
+      "type": "L",
+      "air_temp": 300.5,
+      "process_temp": 310.5,
+      "rpm": 2633,
+      "torque": 12.2,
+      "tool_wear": 17,
+      "check_risk": 0.9945095838827498
+    },
+    {
+      "id": "overstrain",
+      "name": "Overstrain",
+      "blurb": "Recorded overstrain failure. Wear \u00d7 torque 12538 on a type L part.",
+      "recorded": "Overstrain",
+      "product_id": "L53677",
+      "type": "L",
+      "air_temp": 300.8,
+      "process_temp": 309.9,
+      "rpm": 1312,
+      "torque": 65.3,
+      "tool_wear": 192,
+      "check_risk": 0.9844451519645461
+    },
+    {
+      "id": "tool",
+      "name": "Tool wear",
+      "blurb": "Recorded tool-wear failure. Tool wear 246 min.",
+      "recorded": "Tool wear",
+      "product_id": "H32278",
+      "type": "H",
+      "air_temp": 300.6,
+      "process_temp": 309.4,
+      "rpm": 1380,
+      "torque": 47.6,
+      "tool_wear": 246,
+      "check_risk": 0.7812079400459109
+    }
+  ],
+  "baseline_risk": 0.0
+}
