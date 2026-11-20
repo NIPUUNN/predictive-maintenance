@@ -1,4 +1,4 @@
-"""Inspection desk for one milling cycle, or a shift of them.
+"""Predictive maintenance desk for one milling cycle, or a shift of them.
 
 The form uses the model fit on all 10,000 AI4I cycles. The test tab is a
 locked 2,000-cycle holdout, scored before that final fit.
@@ -54,18 +54,20 @@ READING_COLUMNS = {
     "product_id": "machine_id",
 }
 
-st.set_page_config(page_title="Milling inspection", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Predictive maintenance", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown(
     """
     <style>
-    .block-container { max-width: 1120px; padding-top: 1.4rem; padding-bottom: 3rem; }
-    h1 { font-weight: 500; letter-spacing: -0.03em; font-size: 1.65rem; margin-bottom: 0.15rem; }
-    h2 { font-weight: 500; letter-spacing: -0.02em; font-size: 1.15rem; padding-top: 0.4rem; }
+    .block-container { max-width: 1120px; padding-top: 1.25rem; padding-bottom: 3rem; }
+    h1 { font-weight: 500; letter-spacing: -0.03em; font-size: 1.7rem; margin-bottom: 0.1rem; }
+    h2 { font-weight: 500; letter-spacing: -0.02em; font-size: 1.12rem; padding-top: 0.6rem; }
     #MainMenu, footer { visibility: hidden; }
     header[data-testid="stHeader"] { background: transparent; }
-    .decision { font-size: 1.7rem; font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; margin: 0 0 0.35rem 0; }
-    div[data-testid="stVerticalBlockBorderWrapper"] { border-color: #2A2E32; }
+    .decision { font-size: 1.65rem; font-weight: 500; letter-spacing: -0.03em; line-height: 1.15; margin: 0.15rem 0 0.45rem 0; }
+    div[data-testid="stVerticalBlockBorderWrapper"] { border-color: #2C3136; background: #171A1D; }
+    div[data-testid="stSlider"] { padding-top: 0.15rem; padding-bottom: 0.15rem; }
+    div[data-testid="stSlider"] label p { font-size: 0.86rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -253,8 +255,8 @@ def style_chart(chart: alt.Chart) -> alt.Chart:
 
 head_left, head_right = st.columns([3, 2])
 with head_left:
-    st.title("Milling inspection")
-    st.caption("Enter one cycle, or a list. The page says which machines to stop.")
+    st.title("Predictive maintenance")
+    st.caption("Six readings for one cycle. Stop it, or leave it running.")
 with head_right:
     st.caption(
         f"AI4I 2020, UCI. {dataset['rows']:,} cycles, {dataset['failures']:,} failures "
@@ -279,55 +281,11 @@ with controls:
             st.text_input("Machine", key="machine_id")
         with type_col:
             st.radio("Type", ["L", "M", "H"], horizontal=True, key="type", on_change=mark_edited)
-        air_col, process_col = st.columns(2)
-        with air_col:
-            st.number_input(
-                "Air temperature (K)",
-                min_value=295.3,
-                max_value=304.5,
-                step=0.1,
-                format="%.1f",
-                key="air",
-                on_change=mark_edited,
-            )
-        with process_col:
-            st.number_input(
-                "Process temperature (K)",
-                min_value=305.7,
-                max_value=313.8,
-                step=0.1,
-                format="%.1f",
-                key="process",
-                on_change=mark_edited,
-            )
-        rpm_col, torque_col = st.columns(2)
-        with rpm_col:
-            st.number_input(
-                "Rotational speed (rpm)",
-                min_value=1168,
-                max_value=2886,
-                step=1,
-                key="rpm",
-                on_change=mark_edited,
-            )
-        with torque_col:
-            st.number_input(
-                "Torque (N·m)",
-                min_value=3.8,
-                max_value=76.6,
-                step=0.1,
-                format="%.1f",
-                key="torque",
-                on_change=mark_edited,
-            )
-        st.number_input(
-            "Tool wear (min)",
-            min_value=0,
-            max_value=253,
-            step=1,
-            key="wear",
-            on_change=mark_edited,
-        )
+        st.slider("Air temperature (K)", 295.3, 304.5, step=0.1, key="air", on_change=mark_edited)
+        st.slider("Process temperature (K)", 305.7, 313.8, step=0.1, key="process", on_change=mark_edited)
+        st.slider("Rotational speed (rpm)", 1168, 2886, step=1, key="rpm", on_change=mark_edited)
+        st.slider("Torque (N·m)", 3.8, 76.6, step=0.1, key="torque", on_change=mark_edited)
+        st.slider("Tool wear (min)", 0, 253, step=1, key="wear", on_change=mark_edited)
 
 payload = current_payload()
 features = build_features(pd.DataFrame([payload]))

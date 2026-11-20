@@ -1,4 +1,4 @@
-# Milling inspection
+# Predictive maintenance
 
 A finished milling cycle has six readings. This project turns those readings into a stop-or-run decision, so a technician inspects the risky machines instead of every machine.
 
